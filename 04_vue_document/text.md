@@ -92,22 +92,126 @@ createdでWebAPI通信処理を行っていたりすると大変なことにな�
 
 
 
-
-
-
-
-
-
-
-
 ### props として受け取った値を変更させたいよ
+親コンポーネントから子コンポーネントへ状態(props)を渡したとき、その状態を変更させたいときがあります。このとき、propsの値を子コンポーネント内で直接変更することは禁止されています。理由は子コンポーネントで親コンポーネントの値を変更してしまうと、親コンポーネントがその変更を検知できず、再描画が行われないなどのバグが発生する可能性があるからです。  
 
-data 定義、computed 定義を紹介
+Vueのドキュメントでは、以下の2つの方法でpropsの状態を変更させるように説明されています。
+
+1. propsの値を初期値として、子コンポーネントのdataで新たに状態を定義する
+```javascript
+props: ['initialCounter'],
+data: function () {
+  return {
+    counter: this.initialCounter
+  }
+}
+```
+2. propsの値を加工したいだけならば、computedを使用する
+例えばpropsとして受け取った値を小文字に変換したり、配列から必要な情報だけ抽出したいときなどは、computedで状態を定義します。
+```javascript
+props: ['size'],
+computed: {
+  normalizedSize: function () {
+    return this.size.trim().toLowerCase()
+  }
+}
+```
+
+参考：[単方向のデータフロー](https://jp.vuejs.org/v2/guide/components-props.html#%E5%8D%98%E6%96%B9%E5%90%91%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E3%83%95%E3%83%AD%E3%83%BC)
+
+
+
+
 
 ### 子コンポーネントで入力した内容を親要素に教えたいよ
+親コンポーネントで入力データを保持しており、子コンポーネントで入力欄を実装している場合を考えます。  
+```javascript
+// 親コンポーネントの状態例
+export default {
+  data() {
+    return {
+      user: {name: "XXXX", age: 20}
+    };
+  },
+};
 
-自分がやっていた失敗談載せる
-.sync 修飾子の話
+// 子コンポーネントの例
+<template>
+  <form>
+    <label>
+      名前
+      <input type="text" v-model="user.name" />
+    </label>
+　　<label>
+      年齢
+      <input type="text" v-model="user.age" />
+    </label>
+  </form>
+</template>
+
+<script>
+export default {
+  props: {
+    user: {
+      type: Object,
+      default: () => ({})
+    }
+  }
+};
+</script>
+```
+Vue.jsでは入力操作に関する状態の変更方法として、[v-model](https://jp.vuejs.org/v2/guide/components-custom-events.html#v-model-%E3%82%92%E4%BD%BF%E3%81%A3%E3%81%9F%E3%82%B3%E3%83%B3%E3%83%9D%E3%83%BC%E3%83%8D%E3%83%B3%E3%83%88%E3%81%AE%E3%82%AB%E3%82%B9%E3%82%BF%E3%83%9E%E3%82%A4%E3%82%BA)が用意されています。v-modelに状態をセットするだけで、入力欄に記入した内容を状態にも反映してくれます。  
+しかし、上のコードのようにpropsとして受け取った値を直接v-modelにセットすると、propsの値を直接変更することになるため、コンソールに警告が表示されます。  
+
+私は上記のような実装をしたときは、子コンポーネントでpropsを初期値とした状態を新たに定義し、その状態をv-modelにセットするようにしました。そして入力操作が行われるたびに、$emitを実行して親コンポーネントの状態を更新する、という感じで実装しました。  
+一応親から子へと単方向のデータフローになっているので問題はないですが、冗長ですね。
+
+私が実装した方法をもっとスマートに書く方法として、[sync修飾子](https://jp.vuejs.org/v2/guide/components-custom-events.html#sync-%E4%BF%AE%E9%A3%BE%E5%AD%90)を使用します。  
+```javascript
+// 親コンポーネントでsync修飾子を付けて状態を渡す
+  <div>
+    <user-input-form :name.sync="user.name" :age.sync="user.age" @submit="createUser" />
+  </div>
+
+// 子コンポーネント
+<template>
+  <form>
+    <label>
+      名前
+      <input type="text" :value="name" @input="$emit('update:name', $event.target.value)" />
+    </label>
+　　<label>
+      年齢
+      <input type="text" :value="age" @input="$emit('update:age', $event.target.value)" />
+    </label>
+  </form>
+</template>
+
+<script>
+export default {
+  props: {
+    name: {
+      type: String,
+      default: ""
+    },
+    age: {
+      type: String,
+      default: ""
+    }
+  }
+};
+</script>
+```
+親コンポーネントから渡す値のプロパティにsync修飾子を追記します。
+
+そして子コンポーネントではpropsとして受け取った値をそのまま、inputタグのvalue属性にセットしています。さらに入力ごとに実行されるinputイベントには$emitがセットされています。$emitの第一引数には更新対象の状態の名前、第二引数には入力された値が入っています。  
+これで親コンポーネントで定義した状態userの中身を更新してくれるようになります。わざわざ子コンポーネントで新たに状態を定義する必要がなくなります。
+
+また上記のコードでは親コンポーネントでsync修飾子をつける際に、name、ageと一つずつ定義していますが、オブジェクトごと定義することもできます。
+```html
+<user-input-form v-bind.sync="user" />
+```
+
 
 ### 親から子のスロットを操作したいよ
 
