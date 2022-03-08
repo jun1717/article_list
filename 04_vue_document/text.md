@@ -213,38 +213,189 @@ export default {
 ```
 
 
-### 親から子のスロットを操作したいよ
 
-テーブル操作をするときなどに便利
 
 ### タブ切り替えでも値を保存しておきたいよ
+タブのように、状態によって表示するコンポーネントを切り替えたい場合は、componentタグのis属性にコンポーネント名を入れるようにすれば切り替えられます。切り替えるコンポーネント数が多い場合、`v-if`や`v-show`を使用するとその数だけHTMLのコード量が多くなりますが、componentタグを使用すれば一行で済みます。
+```html
+<template>
+  <div>
+    <!-- currentComponent変数に表示するコンポーネントを代入しておく -->
+    <component :is="currentComponent"></component>
+  </div>
+</template>
+```
 
-keep-alive を使用する
-動的コンポーネントもここで紹介
-v-if,v-show との違いを少し調べる
+またタブ操作などでコンポーネントの切り替えを実行するたびに、非表示になるコンポーネントは削除されるので入力情報なども消えてしまいます。  
+このとき入力情報を保持しておきたい場合は、componentタグを`keep-alive`タグで囲います。
+```html
+<template>
+  <div>
+    <keep-alive>
+      <component :is="currentComponent"></component>
+    </keep-alive>
+  </div>  
+</template>
+```
+`keep-alive`タグを使用すると、切り替え時にコンポーネントの状態をキャッシュに保持してくれるようになります。  
+一点注意事項として、必ずkeep-aliveタグの直下にcomponentタグが置く必要があります。コメントアウトなどもダメです。
 
-### 初回描画を早くしたいよ
+参考：[動的コンポーネントにおける keep-alive の利用](https://jp.vuejs.org/v2/guide/components-dynamic-async.html#%E5%8B%95%E7%9A%84%E3%82%B3%E3%83%B3%E3%83%9D%E3%83%BC%E3%83%8D%E3%83%B3%E3%83%88%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B-keep-alive-%E3%81%AE%E5%88%A9%E7%94%A8)
 
-import の書き方の工夫、Udemy が詳しい
-遅延ローディング
 
-### 色情報とかは Vuex にもコンポーネントでも保持したくないよ
+
+### 複数のテキストを変換させたいよ
+先頭の文字だけ大文字に変換するなど、テキストの表記を加工したい場合はフィルターを使用します。
+```html
+<template>
+  <div>
+    {{name | nameFormat}}
+    <!-- John と表示される -->
+  </div>  
+</template>
+
+<!-- 省略 -->
+<script>
+export default {
+  data:{
+    name: 'john'
+  },
+  filters:{
+    // 引数valueにはdata定義したnameが入る
+    nameFormat:function(value){
+      value = value.toString()
+      return value.charAt(0).toUpperCase() + value.slice(1)
+    }
+  }
+};
+</script>
+```
+
+computedでもデータの変換を行うことができますが、複数のデータを変換しようとすると、そのデータの数だけcomputedで定義する必要があります。  
+フィルターを使用すれば複数データの変換が簡潔に書けます。  
+しかし再描画のたびに処理が実行されるので、computedに比べてパフォーマンス面は劣ります。
+
+
+参考：[フィルター](https://jp.vuejs.org/v2/guide/filters.html)
+
+
+### propsによるバケツリレーを防ぎたい
+親から子、孫へデータを受け渡したいとき、propsの記述量が増えてしまいます。親から孫へ渡す場合は、無駄に子コンポーネントにもpropsの定義を書く必要があります。これはVuexを使用すれば解決できますが、Vueが提供している`Inject`、`Provide`でも解決できます。
+
+```html
+<!-- 親コンポーネント -->
+<script>
+export default {
+  data() {
+    return {
+      name: "john",
+    };
+  },
+  provide: function () {
+    return {
+      getName: this.name,
+    };
+  },
+};
+</script>
+
+<!-- 子コンポーネント -->
+<template>
+  <div>
+    {{getName}}
+    <!-- john と表示される -->
+  </div>  
+</template>
+<script>
+export default {
+  inject: ["getName"],
+};
+</script>
+```
+しかし`Provide`は通常の場合リアクティブではありません。つまり、親コンポーネントのnameが変更されても、その変更を検知することができないので古い状態のままになります。
+-----------------------------------
+コードで確認してみる。
+
+
+またVueの公式ドキュメントではコンポーネント同士の依存度が高くなったりなど不都合なことが増えるので、`Inject`と`Provide`は多用することは推奨されておらず、Vuexを使用するよう記載されています。
+調べてみると、色情報やウィンドウサイズの情報共有で用いたりすると良いみたいです。
+
+
+
+参考：[要素 & コンポーネントへのアクセス](https://jp.vuejs.org/v2/guide/components-edge-cases.html#%E8%A6%81%E7%B4%A0-amp-%E3%82%B3%E3%83%B3%E3%83%9D%E3%83%BC%E3%83%8D%E3%83%B3%E3%83%88%E3%81%B8%E3%81%AE%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B9)
+
 
 Provide、Inject の紹介、カラーテーマや画面サイズの他に活用方法あるか調べる。
 
 ### 処理を共通化したいよ
+各コンポーネントで記述してるdata定義やmethods、ライフサイクル処理などのオプションを、Vue.jsのミックスインで共通化することができます。
 
-毎回同じような comuted 処理をしている場合
-ミックスインの使用を検討する
+```javascript
+// mixin.js (ミックスインはJavaScriptファイルで書ける)
+export default {
+  data() {
+    return {
+      title: "タイトル"
+    };
+  },
+  methods: {
+    hello() {
+      alert('hello')
+    }
+  }
+};
+```
+上記のmixin.jsをコンポーネントから読み込むことで、data定義などをいつも通りに使用することができます。
+```html
+<template>
+  <div>
+    {{ title }}
+    <!-- mixin.jsに定義したtitleが表示される -->
+  </div>  
+</template>
+<script>
+import mixin from "./mixin";
+export default {
+  mixins: [mixin],
+  mounted() {
+    this.hello(); // mixin.jsのhelloメソッドが呼ばれる
+  }
+};
+</script>
+```
+
+注意点としてミックスインで定義したdataやメソッドと同じ名前をコンポーネント側でも定義した場合は、コンポーネント側がの定義が優先されます。
+```html
+<template>
+  <div>
+    {{ title }}
+    <!-- mixin.jsに定義したtitleが表示される -->
+  </div>  
+</template>
+<script>
+import mixin from "./mixin";
+export default {
+  mixins: [mixin],
+  methods: {
+    hello() {
+      alert('hello')　// 実行される
+    }
+  },
+  mounted() {
+    this.hello(); // このコンポーネントで定義したhelloメソッドが呼ばれる
+  }
+};
+</script>
+```
+またライフサイクルメソッドに関しては、ミックスイン→コンポーネントの順に実行されます。どちらか片方が実行されるのではなく、両方のライフサイクルメソッドが実行されます。
+
+
+参考：[ミックスイン](https://jp.vuejs.org/v2/guide/mixins.html)
 
 ### カスタムディレクティブの使い方
 
 DOM 操作について共通化させたいときに使うイメージ。
 公式ドキュメントでは初回描画時にフォーカルを当てたり。
-
-### 複数のテキストを変換させたいよ
-
-フィルターつかう。
 
 ## Vue.js 以外のこと
 
@@ -266,3 +417,13 @@ router.bedoreEach の紹介
 
 特定のページで条件によってリダイレクト処理させたい場合。
 beforeRouteEnter などを使う
+
+
+### 初回描画を早くしたいよ
+
+import の書き方の工夫、Udemy が詳しい
+遅延ローディング
+
+### 親から子のスロットを操作したいよ
+
+テーブル操作をするときなどに便利
