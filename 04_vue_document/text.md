@@ -392,26 +392,49 @@ export default {
 
 参考：[ミックスイン](https://jp.vuejs.org/v2/guide/mixins.html)
 
-### カスタムディレクティブの使い方
-
-DOM 操作について共通化させたいときに使うイメージ。
-公式ドキュメントでは初回描画時にフォーカルを当てたり。
 
 ## Vue.js 以外のこと
+### ページ遷移したときに画面の一部を変更したい
+ルーティング設定時に、表示するコンポーネントに名前をつけておきます。  
+`/home`には名前を付けず表示するコンポーネント1つだけを定義、`/main`には表示するコンポーネントに名前を付けて複数定義します。
+```javascript
+routes: [
+    {
+      path: "/home",
+      component: HomeComponent,
+    },
+    {
+      path: '/main',
+      // オブジェクト形式でコンポーネントを定義。keyが名前でvalueにコンポーネントをセット
+      components: {
+        default: MainComponent,
+        content1: Content1Component,
+        content2: Content2Component,
+      },
+    }
+  ],
+```
+描画用のコンポーネントに`router-view`を設置し、ルーティング設定時に付けた名前をname属性にセットします。
+```html
+<template>
+  <div>
+      <router-view/>
+      <router-view name="content1" class="content"/>
+      <router-view name="content2" class="content"/>
+  </div>
+</template>
+```
+`/home`のパスに遷移した場合は、name属性のない一番上の`router-view`にHomeComponentが表示されます。  
+`/main`のパスに遷移した場合は、name属性のない一番上の`router-view`にdefaultとして設定したMainComponentが表示され、
+name属性が「content1」となっている`router-view`にContent1Component、name属性が「content2」となっている`router-view`にContent2Componentが表示されるようになります。  
 
-### 入力の最中に API 通信したいよ
-
-lodash の Debounce 関数
-
-### 画面のレイアウトを固定したいよ
-
-ルーティング設定の components 内の名前と、router-view の名前を関連付ける。
-実際に実装してみる。
+画面の構成はほとんど同じで、パスによって一部の表示内容を変更したいときなどに有効です。
 
 ### 全画面共通の処理をはさみたいよ
 
 router.bedoreEach の紹介
 ログインしてないユーザだったリダイレクトさせる処理を加える。
+
 
 ### 特定の画面における処理を共通化させたいよ
 
@@ -427,3 +450,13 @@ import の書き方の工夫、Udemy が詳しい
 ### 親から子のスロットを操作したいよ
 
 テーブル操作をするときなどに便利
+
+
+
+### カスタムディレクティブの使い方
+
+DOM 操作について共通化させたいときに使うイメージ。
+公式ドキュメントでは初回描画時にフォーカルを当てたり。
+
+### 入力の最中に API 通信したいよ
+lodash の Debounce 関数
