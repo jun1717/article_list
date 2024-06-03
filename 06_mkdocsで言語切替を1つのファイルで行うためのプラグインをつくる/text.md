@@ -17,7 +17,7 @@ mkdocs-static-i18n を使用することで簡単に言語切替を行うこと�
   - MkDocs 1.6.0
   - mkdocs-static-i18n 1.2.3
 
-また筆者は Python 経験がほぼなく、ChatGPT や GitHub Copilot に頼りながら Python実装を行いました。
+また筆者は Python 経験がほぼなく、ChatGPT や GitHub Copilot に頼りながら Python 実装を行いました。
 そのため、Python のコードが冗長であったり、無駄な処理があるかもしれませんが、ご容赦ください。
 
 ## プラグインの仕様
@@ -52,18 +52,17 @@ mkdocs-static-i18n を使用することで簡単に言語切替を行うこと�
 pip install setuptools
 ```
 
-
 ## 言語切替の処理の実装
 
 上記記事で作成した`sample.py`に、言語切替の処理を追加します。
 
-まず`docs`フォルダに存在する、拡張子が`.multilang.md`のファイルを全て取得します。
+まず`docs`フォルダ内に存在する、拡張子が`.multilang.md`のファイルを全て探します。
 ファイルを見つけたら、言語切替の処理を行う`separate_markdown`関数を実行します。
 
 ```python
 class SamplePlugin(BasePlugin):
-    def on_config(self, config):
-        # /docsフォルダ内にある全てのフォルダ名を取得する
+    def on_pre_build(self, config):
+        # /docsフォルダ内にある全ての.multilang.mdファイルを探す
         for root, dirs, files in os.walk('./docs'):
             for file in files:
                 if file.endswith(".multilang.md"):
@@ -71,11 +70,61 @@ class SamplePlugin(BasePlugin):
                     separate_markdown(file_path)
 ```
 
-次に、`separate_markdown`関数を実装します。この関数は、`.multilang.md`ファイルを読み込み、コメントアウトされた言語ごとの文章を取得しします。そして言語ごとの文章を別々のファイルに書き込みます。
+次に、`separate_markdown`関数を実装します。この関数は、`.multilang.md`ファイルを読み込み、コメントアウトされた言語ごとの文章を取得します。そして言語ごとの文章を別々のファイルに書き込みます。
 
 コードは以下の通りです。
 
-<!-- separate_markdownの処理コード -->
+```python
+def separate_markdown(path):
+    with open(path, 'r', encoding='utf-8') as file:
+        content = file.read()
+
+    japanese_content = []
+    english_content = []
+
+    in_japanese = False
+    in_english = False
+    lines = content.split('\n')
+    for line in lines:
+        if line.strip().startswith("<!-- lang:ja -->"):
+            in_japanese = True
+            in_english = False
+            japanese_content.append(line)
+        elif line.strip().startswith("<!-- lang:en -->"):
+            in_japanese = False
+            in_english = True
+            english_content.append(line)
+        elif line.strip().startswith("<!-- lang:common -->"):
+            in_japanese = True
+            in_english = True
+            english_content.append(line)
+            japanese_content.append(line)
+        elif in_japanese & in_english:
+            english_content.append(line)
+            japanese_content.append(line)
+        elif in_japanese:
+            japanese_content.append(line)
+        elif in_english:
+            english_content.append(line)
+        else:
+            japanese_content.append(line)
+            english_content.append(line)
+
+    japanese_content = '\n'.join(japanese_content)
+    english_content = '\n'.join(english_content)
+
+    # 日本語の内容を書き込む前に、既存のファイルの内容と比較し、差分があれば更新する
+    ja_file_path = path.replace('.multilang.md', '.ja.md')
+    if not os.path.exists(ja_file_path) or open(ja_file_path, 'r', encoding='utf-8').read() != japanese_content:
+        with open(ja_file_path, 'w', encoding='utf-8') as file:
+            file.write(japanese_content)
+
+    # 英語の内容を書き込む前に、既存のファイルの内容と比較し、差分があれば更新する
+    en_file_path = path.replace('.multilang.md', '.en.md')
+    if not os.path.exists(en_file_path) or open(en_file_path, 'r', encoding='utf-8').read() != english_content:
+        with open(en_file_path, 'w', encoding='utf-8') as file:
+            file.write(english_content)
+```
 
 詰まった点としては、言語ごとにファイルへ書き込むところで、最初は以下のように実装していました。
 
@@ -88,7 +137,7 @@ with open(file_path.replace('.multilang.md', '.en.md'), 'w', encoding='utf-8') a
 ```
 
 この処理だと、プラグインが実行されるたびに、md ファイルの上書きが行われます。  
-するとMkDocs 側で md ファイルの更新が発生したと判断され、再度ビルドが走る、という無限ループが発生してしまいます。
+すると MkDocs 側で md ファイルの更新が発生したと判断され、再度ビルドが走る、という無限ループが発生してしまいます。
 これを防ぐために、md ファイルが存在しない、もしくは md ファイル内の記述に変更があった場合のみ、ファイルへの書き込みを行うようにしました。
 
 ```python
@@ -119,24 +168,21 @@ if not os.path.exists(en_file_path) or open(en_file_path, 'r', encoding='utf-8')
 ビルド後  
 ![ビルド後のフォルダ構成](./img/ビルド後.png "ビルド後")
 
-
-
-また multilang.md ファイルを更新して保存すると、言語ごとのmdファイルの中身も更新されます。
+また multilang.md ファイルを更新して保存すると、言語ごとの md ファイルの中身も更新されます。
 
 今回のプラグインを作成することで、通常の MkDocs を書いているときと同じ操作のまま、1 つのファイルで言語切替を行うことができました。これにより、複数ファイルを管理する手間が省けるため、更新漏れが発生する可能性が低くなります。
 
 ## その他詰まったところ
+
 他の方に開発したプラグインを使ってもらおうとしたところ、プラグインをインストールする際にエラーが発生しました。
-エラーの内容は以下のGitHubのissueと同様で、Permission denied と表示されました。
+エラーの内容は以下の GitHub の issue と同様で、Permission denied と表示されました。
 
 - [setup.py error: can't create or remove files in install directory (Windows & Ubuntu)](https://github.com/michaelgale/pcbflow/issues/3)
 
 プラグイン作成で参考にした記事では`python setup.py develop`を実行して実装したプラグインをインストールしていましたが、この方法だと管理者権限が必要なディレクトリにインストールしようとするため、エラーが発生するようです。
 
 この解決策として、プラグインをインストールする際に`python setup.py install --user`を実行することで、エラーを回避することができました。`--user`オプションをつけることで、管理者権限が不要なディレクトリにインストールされるためです。
-
-
-
+ただし、プラグインの内容を変更した場合は、一度`python setup.py install --user`でインストールしたプラグインをアンインストールし、再度インストールする必要があります。
 
 ## 参考文献
 
